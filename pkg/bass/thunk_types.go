@@ -2,6 +2,7 @@ package bass
 
 import (
 	"fmt"
+	"path"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/vito/bass/pkg/proto"
@@ -164,13 +165,12 @@ func (platform *Platform) UnmarshalProto(msg proto.Message) error {
 }
 
 func (platform Platform) String() string {
-	str := fmt.Sprintf("os=%s", platform.OS)
+	// TODO: just use specs.Platform
 	if platform.Arch != "" {
-		str += fmt.Sprintf(", arch=%s", platform.Arch)
+		return path.Join(platform.OS, platform.Arch)
 	} else {
-		str += ", arch=any"
+		return platform.OS
 	}
-	return str
 }
 
 // LinuxPlatform is the minimum configuration to select a Linux runtime.
