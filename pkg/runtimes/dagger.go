@@ -57,7 +57,28 @@ func NewDagger(ctx context.Context, _ bass.RuntimePool, cfg *bass.Scope) (bass.R
 }
 
 func (runtime *Dagger) Resolve(ctx context.Context, imageRef bass.ImageRef) (bass.ImageRef, error) {
-	// TODO
+	ref, err := imageRef.Ref()
+	if err != nil {
+		return imageRef, err
+	}
+
+	fqref, err := runtime.client.Container().From(ref).ImageRef(ctx)
+	if err != nil {
+		return imageRef, err
+	}
+
+	fq, err := reference.ParseNamed(fqref)
+	if err != nil {
+		return imageRef, err
+	}
+
+	canon, ok := fq.(reference.Canonical)
+	if !ok {
+		return imageRef, fmt.Errorf("Dagger did not return a canonical reference: %T: %s", fq, fqref)
+	}
+
+	imageRef.Digest = canon.Digest().String()
+
 	return imageRef, nil
 }
 
