@@ -18,6 +18,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/vito/bass/pkg/bass"
 	"github.com/vito/bass/pkg/basstest"
+	"github.com/vito/bass/pkg/cli"
 	"github.com/vito/bass/pkg/internal"
 	"github.com/vito/bass/pkg/ioctx"
 	"github.com/vito/bass/pkg/runtimes/testdata"
@@ -311,6 +312,19 @@ func Suite(t *testing.T, config bass.RuntimeConfig) {
 				bass.String("hello from Dockerfile with env bar\nbar\n"),
 			),
 		},
+		{
+			File: "entrypoints.bass",
+			Result: bass.Bindings{
+				"from-image": bass.String("git version 2.36.3\n"),
+				"from-thunk": bass.String(
+					"setting entrypoint\n" +
+						"using entrypoint\n" +
+						"using entrypoint again\n" +
+						"removing entrypoint\n" +
+						"no more entrypoint\n",
+				),
+			}.Scope(),
+		},
 	} {
 		test := test
 		t.Run(filepath.Base(test.File), func(t *testing.T) {
@@ -333,7 +347,7 @@ func Suite(t *testing.T, config bass.RuntimeConfig) {
 	}
 }
 
-func (test SuiteTest) Run(ctx context.Context, t *testing.T, env *bass.Scope) (bass.Value, error) {
+func (test SuiteTest) Run(ctx context.Context, t *testing.T, env *bass.Scope) (val bass.Value, err error) {
 	is := is.New(t)
 
 	ctx = zapctx.ToContext(ctx, zaptest.NewLogger(t))
@@ -345,6 +359,10 @@ func (test SuiteTest) Run(ctx context.Context, t *testing.T, env *bass.Scope) (b
 	displayBuf := new(bytes.Buffer)
 	ctx = ioctx.StderrToContext(ctx, displayBuf)
 	defer func() {
+		if err != nil {
+			cli.WriteError(ctx, err)
+		}
+
 		t.Logf("progress:\n%s", displayBuf.String())
 	}()
 
