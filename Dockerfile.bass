@@ -1,0 +1,2 @@
+(run (from (docker-build *dir* {:os "linux"})
+       ($ --version)))
