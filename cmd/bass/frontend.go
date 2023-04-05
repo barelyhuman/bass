@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"runtime"
@@ -12,6 +14,7 @@ import (
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	gwclient "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/frontend/gateway/grpcclient"
+	"github.com/moby/buildkit/util/apicaps"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vito/bass/pkg/bass"
 	"github.com/vito/bass/pkg/basstls"
@@ -37,6 +40,28 @@ const (
 	keyFilename         = "filename"
 )
 
+type InputsFilesystem struct {
+	ctx    context.Context
+	gw     gwclient.Client
+	caps   apicaps.CapSet
+	inputs map[string]llb.State
+}
+
+var _ bass.Filesystem = &InputsFilesystem{}
+
+func (fs *InputsFilesystem) FS(contextDir string) (fs.FS, error) {
+	input, found := fs.inputs[contextDir]
+	if !found {
+		return nil, fmt.Errorf("unknown input: %s", contextDir)
+	}
+
+	return util.OpenRefFS(fs.ctx, fs.gw, input, llb.WithCaps(fs.caps))
+}
+
+func (fs *InputsFilesystem) Write(path string, r io.Reader) error {
+	return nil
+}
+
 func frontendBuild(ctx context.Context, gw gwclient.Client) (*gwclient.Result, error) {
 	caps := gw.BuildOpts().Caps
 
@@ -50,13 +75,15 @@ func frontendBuild(ctx context.Context, gw gwclient.Client) (*gwclient.Result, e
 		return nil, err
 	}
 
-	// contextInput, found := inputs[localNameContext]
-	// if !found {
-	// 	contextInput = llb.Local(localNameContext,
-	// 		llb.SessionID(gw.BuildOpts().SessionID),
-	// 		llb.WithCustomName("[internal] local bass workdir"),
-	// 	)
-	// }
+	contextInput, found := inputs[localNameContext]
+	if !found {
+		contextInput = llb.Local(localNameContext,
+			llb.SessionID(gw.BuildOpts().SessionID),
+			llb.WithCustomName("[internal] local bass workdir"),
+		)
+
+		inputs[localNameContext] = contextInput
+	}
 
 	scriptInput, found := inputs[localNameDockerfile]
 	if !found {
@@ -65,6 +92,17 @@ func frontendBuild(ctx context.Context, gw gwclient.Client) (*gwclient.Result, e
 			llb.SessionID(gw.BuildOpts().SessionID),
 			llb.WithCustomName("[internal] local bass script"),
 		)
+
+		inputs[localNameDockerfile] = scriptInput
+	}
+
+	// Override real filesystem with one that knows how to read directly from the
+	// given inputs, and discard writes.
+	bass.FS = &InputsFilesystem{
+		ctx:    ctx,
+		gw:     gw,
+		caps:   caps,
+		inputs: inputs,
 	}
 
 	var certsDir string
