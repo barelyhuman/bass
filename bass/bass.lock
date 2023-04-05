@@ -420,7 +420,7 @@ memos: {
       }
       output: {
         string: {
-          value: "06cbb3adb6ceb9f54e6d747cb56c8f738e893fb1"
+          value: "6ca3f15d70b739a7929886e20b61dbc4cbdc4e22"
         }
       }
     }

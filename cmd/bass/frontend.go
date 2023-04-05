@@ -75,14 +75,13 @@ func frontendBuild(ctx context.Context, gw gwclient.Client) (*gwclient.Result, e
 		return nil, err
 	}
 
-	contextInput, found := inputs[localNameContext]
+	_, found := inputs[localNameContext]
 	if !found {
-		contextInput = llb.Local(localNameContext,
+		// running from 'docker build', which doesn't set inputs
+		inputs[localNameContext] = llb.Local(localNameContext,
 			llb.SessionID(gw.BuildOpts().SessionID),
 			llb.WithCustomName("[internal] local bass workdir"),
 		)
-
-		inputs[localNameContext] = contextInput
 	}
 
 	scriptInput, found := inputs[localNameDockerfile]
